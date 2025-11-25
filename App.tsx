@@ -3,10 +3,11 @@ import { FileUploader } from './components/FileUploader';
 import { AudioRecorder } from './components/AudioRecorder';
 import { ProcessingStatus } from './components/ProcessingStatus';
 import { ResultViewer } from './components/ResultViewer';
+import { ApiKeyModal } from './components/ApiKeyModal';
 import { SupportedLanguage, ProcessingStatus as Status, EXPLICIT_KEYWORDS, GeminiModel, MODEL_LABELS } from './types';
 import { generateSubtitles } from './services/geminiService';
 import { fileToBase64 } from './utils/fileHelpers';
-import { Flame, Languages, ShieldAlert, Zap, Cpu, Mic, Upload } from 'lucide-react';
+import { Flame, Languages, ShieldAlert, Zap, Cpu, Mic, Upload, Settings } from 'lucide-react';
 
 const App: React.FC = () => {
   const [file, setFile] = useState<File | null>(null);
@@ -16,6 +17,7 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | undefined>(undefined);
   const [result, setResult] = useState<string | null>(null);
   const [inputType, setInputType] = useState<'upload' | 'mic'>('upload');
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   
   const getErrorMessage = (err: any): string => {
     if (!err) return "An unknown error occurred.";
@@ -107,9 +109,18 @@ const App: React.FC = () => {
               <span className="text-xs text-primary font-medium tracking-wide">ADULT CAPTION GENERATOR</span>
             </div>
           </div>
-          <div className="hidden md:flex items-center gap-6 text-sm font-medium text-gray-400">
-             <span className="flex items-center gap-1 hover:text-white transition-colors"><Zap size={16} className="text-yellow-500"/> Fast Processing</span>
-             <span className="flex items-center gap-1 hover:text-white transition-colors"><ShieldAlert size={16} className="text-green-500"/> Private & Secure</span>
+          <div className="flex items-center gap-4">
+            <div className="hidden md:flex items-center gap-6 text-sm font-medium text-gray-400">
+              <span className="flex items-center gap-1 hover:text-white transition-colors"><Zap size={16} className="text-yellow-500"/> Fast Processing</span>
+              <span className="flex items-center gap-1 hover:text-white transition-colors"><ShieldAlert size={16} className="text-green-500"/> Private & Secure</span>
+            </div>
+            <button 
+              onClick={() => setIsSettingsOpen(true)}
+              className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-all"
+              title="API Settings"
+            >
+              <Settings size={20} />
+            </button>
           </div>
         </div>
       </header>
@@ -272,6 +283,8 @@ const App: React.FC = () => {
            By using this tool, you agree to generate content responsibly. 
         </p>
       </main>
+
+      <ApiKeyModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
     </div>
   );
 };

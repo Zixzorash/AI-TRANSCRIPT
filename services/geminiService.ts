@@ -1,8 +1,19 @@
 import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from "@google/genai";
 import { SupportedLanguage, EXPLICIT_KEYWORDS, ModelSettings } from "../types";
 
-// Helper to safely get env var without crashing in browsers where 'process' is undefined
+// Helper to safely get env var or local storage
 const getApiKey = (): string | undefined => {
+  // 1. Check Local Storage (User override)
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const localKey = localStorage.getItem('GEMINI_API_KEY');
+      if (localKey) return localKey;
+    }
+  } catch (e) {
+    // Ignore security errors accessing localStorage
+  }
+
+  // 2. Check Process Env (Default)
   try {
     if (typeof process !== 'undefined' && process.env) {
       return process.env.API_KEY;
@@ -26,7 +37,7 @@ export const generateSubtitles = async (
   // Enhanced check for missing API Key
   if (!apiKey) {
     throw new Error(
-      "API Key is missing. Please ensure you have configured your Google Gemini API Key in the environment variables (process.env.API_KEY)."
+      "API Key is missing. Please click the Settings (Gear) icon to enter your API Key, or configure process.env.API_KEY."
     );
   }
 
@@ -140,7 +151,7 @@ export const generateSubtitles = async (
     
     // Handle API Key issues
     if (errorMessage.includes("API KEY") || errorMessage.includes("403") || errorMessage.includes("PERMISSION_DENIED")) {
-       throw new Error("Invalid or expired API Key. Please verify your Google Gemini API Key configuration.");
+       throw new Error("Invalid or missing API Key. Please click the Settings icon to update your key.");
     }
 
     // Handle Bad Requests
