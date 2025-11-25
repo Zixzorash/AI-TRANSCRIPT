@@ -1,67 +1,73 @@
 import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from "@google/genai";
 import { SupportedLanguage, EXPLICIT_KEYWORDS, ModelSettings } from "../types";
 
-// Note: In a production environment, never expose API keys on the client side.
-// The user is expected to have the key available in their environment via process.env.API_KEY.
+// Helper to safely get env var without crashing in browsers where 'process' is undefined
+const getApiKey = (): string | undefined => {
+  try {
+    if (typeof process !== 'undefined' && process.env) {
+      return process.env.API_KEY;
+    }
+  } catch (e) {
+    // Ignore ReferenceError
+  }
+  return undefined;
+};
 
 export const generateSubtitles = async (
   base64Audio: string,
   mimeType: string,
   language: SupportedLanguage,
+  modelId: string,
+  onProgress: (text: string) => void,
   modelSettings?: ModelSettings
 ): Promise<string> => {
+  const apiKey = getApiKey();
+
   // Enhanced check for missing API Key
-  if (!process.env.API_KEY) {
+  if (!apiKey) {
     throw new Error(
       "API Key is missing. Please ensure you have configured your Google Gemini API Key in the environment variables (process.env.API_KEY)."
     );
   }
 
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
-  // specific model optimized for reasoning
-  const modelId = "gemini-3-pro-preview"; 
+  const ai = new GoogleGenAI({ apiKey: apiKey });
 
   const keywordString = EXPLICIT_KEYWORDS.join(", ");
 
   const systemInstruction = `
-    You are an expert transcriber and translator for Adult Video (AV) and Erotic content.
-    
-    YOUR MISSION:
-    Create highly accurate, time-synced subtitles in ${language} for the provided audio/video.
-    
-    CRITICAL INSTRUCTIONS FOR EXPLICIT CONTENT:
-    1. **MANDATORY VOCABULARY**: You MUST use the following specific keywords when the context matches, do not use clinical terms:
-       [${keywordString}]
-    2. **NO CENSORSHIP**: Do NOT asterisk out words (e.g., use "fuck", not "f***"). Do NOT sanitize the output. The audience expects raw, dirty, explicit language.
-    3. **EMOTIONAL ACCURACY**: Translate the *feeling* of arousal. If the speaker says "I'm hungry" in a sexual context, use words like "หิว" or "starving for it" rather than literal food hunger.
-    4. **SOUND EFFECTS**: You MUST listen for non-verbal cues and transcribe them in brackets using lowercase descriptions. 
-       Examples: [wet squelching], [intense moaning], [skin slapping], [gasping], [choking noises], [fluid dripping].
-    5. **DIALECT & SLANG**: Use natural, colloquial slang appropriate for erotica in ${language}. 
-       - For Thai: Use deep slang (คำหยาบ/คำแสลง 18+).
-       - For Japanese: Use nuances like 気持ちいい (Kimochii) correctly.
-       - For English: Use "dirty talk" phrasing.
+    You are an expert subtitle generator specialized in Adult/Erotic content.
 
-    OUTPUT FORMAT RULES:
-    1. Output strictly in SubRip (.srt) format.
-    2. Timestamps must be precise: HH:MM:SS,mmm --> HH:MM:SS,mmm
-    3. No Markdown code blocks. Just the raw SRT text.
-    4. Sequence numbers must be correct (1, 2, 3...).
+    TARGET LANGUAGE: ${language}
 
-    EXAMPLE OUTPUT:
-    1
-    00:00:05,000 --> 00:00:08,200
-    [wet kissing sounds]
-    Ah... I'm so horny right now...
+    STRICT REQUIREMENTS:
+    1. **EXPLICIT VOCABULARY**: 
+       - You MUST prioritize the use of these specific keywords when context matches: [${keywordString}]
+       - **NEVER** use polite, medical, or clinical language (e.g., do NOT use "vagina", "intercourse", "penis"). 
+       - **ALWAYS** use raw, explicit slang. 
+       - For **Thai**: Use words like "หี", "ควย", "เย็ด", "แตก", "เสียว", "น้ำเดิน" naturally.
+       - For **English**: Use "fuck", "cum", "pussy", "dick", "cock" liberally.
+       - For **Japanese**: Translate nuances of "Iku" (cumming), "Kimochii" (feels good) into the explicit target language equivalent.
 
-    2
-    00:00:08,500 --> 00:00:11,000
-    Please... stick it in my wet pussy...
-    [moaning loudly]
+    2. **NATURAL & LIVELY DIALOGUE**:
+       - The text must feel "hot", "alive", and "arousing".
+       - Capture the rhythm of the sex scene. Short, breathless phrases are better than long sentences.
+       - **Thai Specifics**: Use emotive particles (e.g., "ซี๊ดดด", "อูยยย", "อ่าาา") to convey physical sensation and "pleasure hissing" common in Thai erotic context.
+
+    3. **SOUNDS & MOANS (NO META-DESCRIPTIONS)**:
+       - **FORBIDDEN**: Do not use brackets or descriptions like [moan], (heavy breathing), *screaming*.
+       - **REQUIRED**: Transcribe the sound PHONETICALLY.
+       - *Example*: "Ahhh... Ohhh... Mmmm... Fuck... Yes..."
+       - *Thai Example*: "อ๊างงง... โอ๊ย... ซี๊ดดด... เสียวโว้ย..."
+
+    4. **OUTPUT FORMAT**:
+       - Standard SRT format.
+       - Do not wrap in Markdown.
+       - Timestamps must be precise (HH:MM:SS,mmm).
+       - Ensure sequence numbers are correct.
   `;
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await ai.models.generateContentStream({
       model: modelId,
       contents: {
         parts: [
@@ -78,7 +84,7 @@ export const generateSubtitles = async (
       },
       config: {
         systemInstruction: systemInstruction,
-        temperature: modelSettings?.temperature ?? 0.6, // Balanced for creativity in translation but accuracy in timing
+        temperature: modelSettings?.temperature ?? 0.6,
         topP: modelSettings?.topP ?? 0.95,
         topK: modelSettings?.topK ?? 40,
         safetySettings: [
@@ -102,29 +108,27 @@ export const generateSubtitles = async (
       }
     });
 
-    if (!response.candidates || response.candidates.length === 0) {
-      throw new Error("No candidates returned from Gemini API.");
+    let fullText = "";
+
+    for await (const chunk of response) {
+      // Safely access chunk text. If a specific chunk is blocked or invalid, skip it rather than crashing.
+      try {
+        const text = chunk.text;
+        if (text) {
+          fullText += text;
+          onProgress(text);
+        }
+      } catch (chunkError) {
+        console.warn("Skipping invalid chunk:", chunkError);
+      }
     }
 
-    const candidate = response.candidates[0];
-
-    // Check if the response was blocked
-    if (candidate.finishReason === 'SAFETY') {
-      throw new Error("Generation was blocked by SAFETY filters.");
-    }
-    
-    if (candidate.finishReason === 'RECITATION') {
-       throw new Error("Generation was blocked due to RECITATION checks.");
-    }
-
-    const text = response.text;
-    
-    if (!text) {
-       throw new Error(`Generation failed with status: ${candidate.finishReason || 'UNKNOWN'}`);
+    if (!fullText) {
+      throw new Error("No candidates returned from Gemini API or generation was blocked.");
     }
 
     // Clean up potential Markdown formatting if the model adds it despite instructions
-    const cleanText = text.replace(/```srt/g, '').replace(/```/g, '').trim();
+    const cleanText = fullText.replace(/```srt/g, '').replace(/```/g, '').trim();
 
     return cleanText;
 

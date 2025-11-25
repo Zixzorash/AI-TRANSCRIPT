@@ -6,6 +6,16 @@ export enum SupportedLanguage {
   KOREAN = 'Korean'
 }
 
+export enum GeminiModel {
+  GEMINI_3_PRO = 'gemini-3-pro-preview',
+  GEMINI_2_5_FLASH = 'gemini-2.5-flash'
+}
+
+export const MODEL_LABELS: Record<GeminiModel, string> = {
+  [GeminiModel.GEMINI_3_PRO]: 'Gemini 3 Pro (Best Quality)',
+  [GeminiModel.GEMINI_2_5_FLASH]: 'Gemini 2.5 Flash (Fastest)',
+};
+
 export enum OutputFormat {
   SRT = 'srt',
   VTT = 'vtt',
@@ -33,9 +43,10 @@ export interface ModelSettings {
 }
 
 export const EXPLICIT_KEYWORDS = [
-  // Thai
-  "หิว", "จู๋", "เงี่ยน", "น้ำเงี่ยน", "เสียวเสียว", "เสียว", "น้ำแตก", "โม๊ก", "โม๊กควย", "เลียหี", 
-  "ประจัน", "เม็ดแตด", "แตด", "ควย", "เย็ด", "เอา", "เสร็จ", "ร่อง", "น้ำเดิน", "เลีย", "อม",
+  // Thai (Updated per user request)
+  "หี", "ควย", "เงี่ยน", "น้ำเงี่ยน", "เสียวหี", "เสียว", "น้ำแตก", "โม๊ก", "โม๊กควย", "เลียหี", 
+  "เย็ด", "เม็ดแตด", "แตด", "ตูด", "ควยแข็ง", "เย็ดหี", "น้ำหีแตก", "น้ำควยเยิ้ม", "ควยยัดหี", 
+  "น้ำหีเยิ้ม", "หีกระแทกควย",
   
   // English
   "pussy", "cock", "horny", "pussy juice", "pussy pleasure", "pleasure", "squirt", "suck", 

@@ -2,14 +2,15 @@ import React, { useState } from 'react';
 import { FileUploader } from './components/FileUploader';
 import { ProcessingStatus } from './components/ProcessingStatus';
 import { ResultViewer } from './components/ResultViewer';
-import { SupportedLanguage, ProcessingStatus as Status, EXPLICIT_KEYWORDS } from './types';
+import { SupportedLanguage, ProcessingStatus as Status, EXPLICIT_KEYWORDS, GeminiModel, MODEL_LABELS } from './types';
 import { generateSubtitles } from './services/geminiService';
 import { fileToBase64 } from './utils/fileHelpers';
-import { Flame, Languages, ShieldAlert, Zap } from 'lucide-react';
+import { Flame, Languages, ShieldAlert, Zap, Cpu } from 'lucide-react';
 
 const App: React.FC = () => {
   const [file, setFile] = useState<File | null>(null);
   const [language, setLanguage] = useState<SupportedLanguage>(SupportedLanguage.JAPANESE);
+  const [model, setModel] = useState<GeminiModel>(GeminiModel.GEMINI_3_PRO);
   const [status, setStatus] = useState<Status>(Status.IDLE);
   const [error, setError] = useState<string | undefined>(undefined);
   const [result, setResult] = useState<string | null>(null);
@@ -44,7 +45,7 @@ const App: React.FC = () => {
     if (!file) return;
 
     try {
-      setResult(null);
+      setResult(null); // Clear previous result
       setError(undefined);
       setStatus(Status.READING_FILE);
 
@@ -57,10 +58,21 @@ const App: React.FC = () => {
 
       setStatus(Status.GENERATING);
       
-      // 2. Call Gemini (uses default settings in service)
-      const generatedSubtitle = await generateSubtitles(base64Data, file.type, language);
+      // Initialize result as empty string so ResultViewer appears if logic permits
+      setResult("");
+
+      // 2. Call Gemini with streaming callback
+      const generatedSubtitle = await generateSubtitles(
+        base64Data, 
+        file.type, 
+        language, 
+        model,
+        (chunk) => {
+          setResult(prev => (prev || '') + chunk);
+        }
+      );
       
-      setResult(generatedSubtitle);
+      setResult(generatedSubtitle); // Set final cleaned result
       setStatus(Status.COMPLETED);
 
     } catch (err: any) {
@@ -139,6 +151,27 @@ const App: React.FC = () => {
             <div className="flex flex-col gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
+                  <Cpu size={16} /> AI Model
+                </label>
+                <div className="relative">
+                  <select
+                    value={model}
+                    onChange={(e) => setModel(e.target.value as GeminiModel)}
+                    disabled={status !== Status.IDLE && status !== Status.COMPLETED && status !== Status.ERROR}
+                    className="w-full appearance-none bg-surface border border-gray-600 text-white py-3 px-4 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                  >
+                    {Object.values(GeminiModel).map((m) => (
+                      <option key={m} value={m}>{MODEL_LABELS[m]}</option>
+                    ))}
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-400">
+                    <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
                   <Languages size={16} /> Target Language
                 </label>
                 <div className="relative">
@@ -181,14 +214,18 @@ const App: React.FC = () => {
           <ProcessingStatus status={status} error={error} />
 
           {/* Result Area */}
-          {result && file && (
-            <ResultViewer srtContent={result} originalFileName={file.name} />
+          {result !== null && file && (
+            <ResultViewer 
+              srtContent={result} 
+              originalFileName={file.name} 
+              isGenerating={status === Status.GENERATING}
+            />
           )}
 
         </div>
         
         <p className="text-center text-gray-600 text-xs mt-8">
-           Powered by Gemini 3 Pro. Results depend on audio quality. <br/>
+           Powered by Gemini AI. Results depend on audio quality. <br/>
            By using this tool, you agree to generate content responsibly. 
         </p>
       </main>
