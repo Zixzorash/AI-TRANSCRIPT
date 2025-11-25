@@ -1,19 +1,21 @@
 import React, { useState } from 'react';
 import { FileUploader } from './components/FileUploader';
+import { AudioRecorder } from './components/AudioRecorder';
 import { ProcessingStatus } from './components/ProcessingStatus';
 import { ResultViewer } from './components/ResultViewer';
 import { SupportedLanguage, ProcessingStatus as Status, EXPLICIT_KEYWORDS, GeminiModel, MODEL_LABELS } from './types';
 import { generateSubtitles } from './services/geminiService';
 import { fileToBase64 } from './utils/fileHelpers';
-import { Flame, Languages, ShieldAlert, Zap, Cpu } from 'lucide-react';
+import { Flame, Languages, ShieldAlert, Zap, Cpu, Mic, Upload } from 'lucide-react';
 
 const App: React.FC = () => {
   const [file, setFile] = useState<File | null>(null);
   const [language, setLanguage] = useState<SupportedLanguage>(SupportedLanguage.JAPANESE);
-  const [model, setModel] = useState<GeminiModel>(GeminiModel.GEMINI_3_PRO);
+  const [model, setModel] = useState<GeminiModel>(GeminiModel.GEMINI_2_5_FLASH);
   const [status, setStatus] = useState<Status>(Status.IDLE);
   const [error, setError] = useState<string | undefined>(undefined);
   const [result, setResult] = useState<string | null>(null);
+  const [inputType, setInputType] = useState<'upload' | 'mic'>('upload');
   
   const getErrorMessage = (err: any): string => {
     if (!err) return "An unknown error occurred.";
@@ -119,7 +121,7 @@ const App: React.FC = () => {
             Bring your scenes to <span className="text-primary italic">life</span>.
           </h2>
           <p className="text-gray-400 max-w-2xl mx-auto text-lg">
-            Upload your audio or video. We'll capture every whisper, moan, and dialogue with emotional accuracy and proper timestamps.
+            Upload your audio or video, or record directly. We'll capture every whisper, moan, and dialogue with emotional accuracy.
           </p>
           
           <div className="flex flex-wrap justify-center gap-2 mt-4 opacity-70">
@@ -137,15 +139,56 @@ const App: React.FC = () => {
           {/* Controls */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
-                Upload Media 
-              </label>
-              <FileUploader 
-                onFileSelect={setFile} 
-                selectedFile={file} 
-                onClear={() => { setFile(null); setResult(null); setStatus(Status.IDLE); }}
-                disabled={status === Status.GENERATING || status === Status.UPLOADING_TO_AI || status === Status.READING_FILE}
-              />
+              
+              {/* Tabs / Input Label */}
+              <div className="flex items-center justify-between mb-4">
+                 <label className="block text-sm font-medium text-gray-300">
+                   Input Source
+                 </label>
+                 {!file && (
+                   <div className="flex bg-gray-800 rounded-lg p-1 border border-gray-700">
+                     <button 
+                        onClick={() => setInputType('upload')}
+                        className={`px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all ${inputType === 'upload' ? 'bg-gray-700 text-white shadow-sm' : 'text-gray-400 hover:text-gray-200'}`}
+                     >
+                        <Upload size={14} /> Upload
+                     </button>
+                     <button 
+                        onClick={() => setInputType('mic')}
+                        className={`px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all ${inputType === 'mic' ? 'bg-gray-700 text-white shadow-sm' : 'text-gray-400 hover:text-gray-200'}`}
+                     >
+                        <Mic size={14} /> Record
+                     </button>
+                   </div>
+                 )}
+              </div>
+
+              {/* Input Area */}
+              {file ? (
+                <FileUploader 
+                  onFileSelect={setFile} 
+                  selectedFile={file} 
+                  onClear={() => { setFile(null); setResult(null); setStatus(Status.IDLE); }}
+                  disabled={status === Status.GENERATING || status === Status.UPLOADING_TO_AI || status === Status.READING_FILE}
+                />
+              ) : (
+                <>
+                  {inputType === 'upload' && (
+                    <FileUploader 
+                      onFileSelect={setFile} 
+                      selectedFile={null} 
+                      onClear={() => {}}
+                      disabled={status !== Status.IDLE && status !== Status.COMPLETED && status !== Status.ERROR}
+                    />
+                  )}
+                  {inputType === 'mic' && (
+                    <AudioRecorder 
+                      onRecordingComplete={(f) => setFile(f)}
+                      disabled={status !== Status.IDLE && status !== Status.COMPLETED && status !== Status.ERROR}
+                    />
+                  )}
+                </>
+              )}
             </div>
 
             <div className="flex flex-col gap-4">

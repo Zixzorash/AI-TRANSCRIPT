@@ -1,5 +1,7 @@
 {
   "name": "SensualSubs AI",
   "description": "An automated subtitle and caption generator powered by Gemini, specialized for capturing emotional nuances, sounds, and adult context in multiple languages.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "microphone"
+  ]
 }
